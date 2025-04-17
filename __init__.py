@@ -9,9 +9,10 @@
 - QR码阵列布局与组合
 - QR码阵列识别与文本重组
 - 文件编码与解码传输
+- 图形用户界面
 """
 
-__version__ = '1.0.0'
+__version__ = '1.1.0'
 __author__ = 'QR Array Project Team'
 __date__ = '2025-04-16'
 
@@ -33,4 +34,10 @@ from .read_qr_array import (
 from .qr_code_file_transfer import (
     encode_file_to_qr_array,
     decode_qr_array_to_file
-) 
+)
+
+# 尝试导入GUI功能，如果PyQt6不可用则忽略
+try:
+    from .qr_array_gui import QRArrayApp, main as gui_main
+except ImportError:
+    pass 

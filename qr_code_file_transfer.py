@@ -68,14 +68,22 @@ def decode_qr_array_to_file(array_image_path, output_dir='.', visual_debug=False
     print(f"解码的原始数据: {combined_text[:50]}...")
     
     # 处理可能带有索引前缀的数据
-    # 检查是否有形如 "0:QRTEXT:" 或 "0:QRFILE:" 的前缀
-    match = re.match(r'^\d+:(QRTEXT:|QRFILE:)', combined_text)
-    if match:
-        # 去除索引前缀
+    # 检查是否有形如 "IDX:000:QRTEXT:" 或 "0:QRTEXT:" 前缀
+    match_new = re.match(r'^IDX:\d{3}:(QRTEXT:|QRFILE:)', combined_text)
+    match_old = re.match(r'^\d+:(QRTEXT:|QRFILE:)', combined_text)
+    
+    if match_new:
+        # 去除新格式的索引前缀 IDX:000:
+        idx_end = combined_text.find(':', 4) # 跳过"IDX:"找到第二个冒号
+        if idx_end != -1:
+            combined_text = combined_text[idx_end+1:]
+            print(f"检测到新格式索引前缀，已移除。处理后数据: {combined_text[:50]}...")
+    elif match_old:
+        # 去除旧格式的索引前缀 0:
         index_end = combined_text.find(':')
         if index_end != -1:
             combined_text = combined_text[index_end+1:]
-            print(f"检测到索引前缀，已移除。处理后数据: {combined_text[:50]}...")
+            print(f"检测到旧格式索引前缀，已移除。处理后数据: {combined_text[:50]}...")
     
     # 检查文件类型
     if combined_text.startswith("QRTEXT:"):
@@ -89,8 +97,27 @@ def decode_qr_array_to_file(array_image_path, output_dir='.', visual_debug=False
         is_text = False
         print("检测到二进制文件格式")
     else:
-        print(f"无效的文件数据格式，前缀为: {combined_text[:20]}")
-        return None
+        # 未检测到文件标记，将其视为纯文本
+        print("未检测到文件格式标记，将其视为纯文本")
+        
+        # 创建时间戳文件名
+        import datetime
+        timestamp = datetime.datetime.now().strftime("%Y%m%d_%H%M%S")
+        output_path = os.path.join(output_dir, f"decoded_text_{timestamp}.txt")
+        
+        # 确保输出目录存在
+        os.makedirs(output_dir, exist_ok=True)
+        
+        # 将解码的内容写入文本文件
+        try:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write(combined_text)
+            print(f"已将解码文本保存到: {output_path}")
+            print(f"内容前100个字符: {combined_text[:100]}...")
+            return output_path
+        except Exception as e:
+            print(f"保存纯文本时出错: {e}")
+            return None
     
     # 解析文件名和数据
     try:

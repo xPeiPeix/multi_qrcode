@@ -55,23 +55,52 @@ def extract_qr_codes_from_array(array_image_path, visual_debug=False):
     decoded_objects = decode(gray)
     
     if visual_debug:
+        # 创建一个可视化图像副本
+        visual_image = image.copy()
+        
         # 在图像上标记识别到的QR码
         for i, obj in enumerate(decoded_objects):
             points = obj.polygon
             if len(points) > 4:
                 hull = cv2.convexHull(np.array([point for point in points]))
-                cv2.polylines(image, [hull], True, (0, 255, 0), 2)
+                cv2.polylines(visual_image, [hull], True, (0, 255, 0), 3)
             else:
-                cv2.polylines(image, [np.array(points)], True, (0, 255, 0), 2)
+                cv2.polylines(visual_image, [np.array(points)], True, (0, 255, 0), 3)
             
-            # 显示QR码索引
-            pts = np.array(points, np.int32)
-            pts = pts.reshape((-1, 1, 2))
-            cv2.putText(image, str(i), (pts[0][0][0], pts[0][0][1]), 
-                        cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            # 显示QR码索引（尝试从数据中提取）
+            try:
+                data = obj.data.decode('utf-8')
+                # 尝试找出索引
+                index_match = re.search(r'IDX:(\d{3}):', data)
+                if index_match:
+                    index_num = index_match.group(1)
+                else:
+                    index_num = str(i)
+                
+                # 在QR码上方显示索引号，更加明显
+                pts = np.array(points, np.int32)
+                pts = pts.reshape((-1, 1, 2))
+                text_x = pts[0][0][0]
+                text_y = pts[0][0][1] - 10  # 在QR码上方显示
+                
+                # 绘制索引号（带背景色以提高可见性）
+                cv2.rectangle(visual_image, 
+                              (text_x - 5, text_y - 25), 
+                              (text_x + 70, text_y + 5), 
+                              (255, 255, 255), -1)
+                cv2.putText(visual_image, f"ID:{index_num}", 
+                            (text_x, text_y), 
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 0, 255), 2)
+            except Exception as e:
+                print(f"在可视化过程中发生错误: {str(e)}")
+        
+        # 保存可视化结果到文件
+        debug_image_path = array_image_path.replace('.png', '_debug.png')
+        cv2.imwrite(debug_image_path, visual_image)
+        print(f"已保存调试图像到: {debug_image_path}")
         
         # 显示图像
-        cv2.imshow("QR Code Array Reader", image)
+        cv2.imshow("QR码阵列识别结果", visual_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
@@ -80,7 +109,7 @@ def extract_qr_codes_from_array(array_image_path, visual_debug=False):
     for obj in decoded_objects:
         try:
             data = obj.data.decode('utf-8')
-            print(f"识别到QR码数据: {data[:30]}..." if len(data) > 30 else f"识别到QR码数据: {data}")
+            print(f"识别到QR码数据: {data[:40]}..." if len(data) > 40 else f"识别到QR码数据: {data}")
             results.append(data)
         except UnicodeDecodeError:
             print("QR码数据解码失败：非UTF-8编码")
@@ -93,29 +122,67 @@ def combine_qr_code_data(qr_data_list):
     # 创建一个字典，用于存储索引和对应的文本
     indexed_data = {}
     
-    # 解析每个QR码数据
+    # 解析每个QR码数据，支持新旧两种索引格式
     for data in qr_data_list:
-        match = re.match(r'^(\d+):(.*)$', data)
+        # 调试输出，帮助诊断问题
+        print(f"正在解析数据，前10个字符: [{data[:10]}]")
+        
+        # 尝试新格式 "IDX:000:"
+        # 使用search而不是match，并且优化正则表达式，使其更加宽松
+        match = re.search(r'IDX:(\d{3}):(.*)', data, re.DOTALL)
         if match:
             index = int(match.group(1))
             text = match.group(2)
             indexed_data[index] = text
-            print(f"匹配成功: 索引={index}, 文本长度={len(text)}")
-        else:
-            print(f"无法解析索引: {data[:30]}..." if len(data) > 30 else f"无法解析索引: {data}")
-            # 如果只有一个QR码且没有索引，直接返回内容
-            if len(qr_data_list) == 1:
-                print("只有一个QR码且无索引，直接返回内容")
-                return data
+            print(f"匹配成功(新格式): 索引={index}, 文本长度={len(text)}")
+            continue
+            
+        # 尝试旧格式 "0:"
+        match = re.search(r'^(\d+):(.*)', data, re.DOTALL)
+        if match:
+            index = int(match.group(1))
+            text = match.group(2)
+            indexed_data[index] = text
+            print(f"匹配成功(旧格式): 索引={index}, 文本长度={len(text)}")
+            continue
+        
+        print(f"无法解析索引: {data[:40]}..." if len(data) > 40 else f"无法解析索引: {data}")
+        # 如果只有一个QR码且没有索引，直接返回内容
+        if len(qr_data_list) == 1:
+            print("只有一个QR码且无索引，直接返回内容")
+            return data
     
     if not indexed_data:
         print("没有有效的索引数据")
-        if len(qr_data_list) == 1:
-            return qr_data_list[0]
-        return None
+        
+        # 紧急修复：如果所有数据都以IDX:开头但无法正常解析，进行手动解析
+        manual_recovery = False
+        if all(data.startswith('IDX:') for data in qr_data_list):
+            print("检测到所有数据块都包含IDX:前缀，尝试手动恢复...")
+            try:
+                for data in qr_data_list:
+                    # 简单的手动提取索引
+                    parts = data.split(':', 2)  # 最多分割2次
+                    if len(parts) >= 3 and parts[0] == 'IDX':
+                        try:
+                            index = int(parts[1])
+                            text = parts[2]
+                            indexed_data[index] = text
+                            manual_recovery = True
+                            print(f"手动恢复索引: {index}")
+                        except ValueError:
+                            print(f"手动恢复索引失败: {parts[1]}")
+            except Exception as e:
+                print(f"手动恢复过程出错: {e}")
+        
+        if not manual_recovery:
+            if len(qr_data_list) == 1:
+                return qr_data_list[0]
+            return None
     
     # 按索引排序并合并文本
     sorted_indices = sorted(indexed_data.keys())
+    print(f"有效索引列表: {sorted_indices}")
     combined_text = ''.join(indexed_data[index] for index in sorted_indices)
     
     return combined_text

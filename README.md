@@ -11,18 +11,86 @@
 - 根据索引重组文本，还原原始信息
 - 支持中文和Unicode字符
 - 支持二进制文件传输（通过Base64编码）
+- 提供图形用户界面，易于使用
+
+## 项目文件说明
+
+本项目由以下主要文件组成：
+
+| 文件名 | 说明 |
+| --- | --- |
+| `generate_qr_array.py` | 实现QR码生成核心功能，将文本分割成块并生成QR码阵列 |
+| `read_qr_array.py` | 实现QR码阵列读取功能，识别阵列中的QR码并重组文本 |
+| `qr_code_file_transfer.py` | 文件传输模块，支持将任意文件编码为QR码阵列并解码恢复 |
+| `qr_array_gui.py` | 图形用户界面实现，基于PyQt6，提供直观的操作体验 |
+| `requirements.txt` | 项目依赖库列表 |
+| `README.md` | 项目说明文档 |
+| `CHANGELOG.md` | 版本更新历史记录 |
+
+### 核心功能文件详细说明
+
+- **generate_qr_array.py**：
+  - 实现文本分割功能
+  - 为每个文本块生成带索引的QR码（使用"IDX:000:"格式的索引前缀）
+  - 将多个QR码排列成阵列图像
+  - 支持自定义行列数和每个QR码的文本块大小
+  - 包含错误处理和版本控制逻辑
+
+- **read_qr_array.py**：
+  - 提取QR码阵列中的所有QR码
+  - 解析每个QR码的内容和索引
+  - 按索引顺序重组文本
+  - 提供可视化调试功能
+  - 支持多种索引格式，具有强大的容错能力
+
+- **qr_code_file_transfer.py**：
+  - 封装文件编码和解码逻辑
+  - 支持文本和二进制文件传输
+  - 使用Base64编码处理二进制数据
+  - 提供命令行界面
+  - 支持纯文本和带文件标记的QR码解码
+
+- **qr_array_gui.py**：
+  - 基于PyQt6的图形界面实现
+  - 提供文本编码、文件编码和图像解码功能
+  - 支持文件选择和保存
+  - 包含图像预览和日志功能
+  - 使用工作线程处理长时间操作，避免界面冻结
 
 ## 安装依赖
 
 在Windows环境下，使用PowerShell执行以下命令安装所需库：
 
 ```powershell
-pip install qrcode pillow opencv-python pyzbar numpy
+pip install -r requirements.txt
+```
+
+或者单独安装依赖：
+
+```powershell
+pip install qrcode pillow opencv-python pyzbar numpy PyQt6
 ```
 
 ## 使用方法
 
-### 生成QR码阵列
+### 图形用户界面
+
+启动图形用户界面，提供直观的操作体验：
+
+```powershell
+python qr_array_gui.py
+```
+
+GUI界面包含三个主要功能选项卡：
+1. **文本编码**：将输入文本编码为QR码阵列
+2. **文件编码**：将任意文件编码为QR码阵列
+3. **图像解码**：从QR码阵列图像解码恢复原始文本/文件
+
+界面底部提供操作日志查看和图像预览功能。
+
+### 命令行接口
+
+#### 生成QR码阵列
 
 运行 `generate_qr_array.py` 文件：
 
@@ -32,7 +100,7 @@ python generate_qr_array.py
 
 可以修改代码中的 `sample_text` 变量来生成包含自定义文本的QR码阵列。
 
-### 读取QR码阵列
+#### 读取QR码阵列
 
 运行 `read_qr_array.py` 文件：
 
@@ -42,7 +110,7 @@ python read_qr_array.py
 
 默认会读取当前目录下的 `qr_array.png` 文件。
 
-### 使用文件传输功能
+#### 使用文件传输功能
 
 文件传输功能提供了更完整的功能，用于将任何文件编码为QR码阵列，以及从QR码阵列恢复文件：
 
@@ -109,10 +177,20 @@ python qr_code_file_transfer.py encode important_document.txt --chunk-size 500 -
 python qr_code_file_transfer.py decode important_document_qr_array.png --output-dir recovered
 ```
 
+也可以使用图形界面进行操作，更加直观方便：
+
+```python
+python qr_array_gui.py
+```
+
 ## 注意事项
 
 - QR码之间需要有足够的空白区域，以确保能够正确识别
 - 阵列中的QR码过多可能会导致识别困难
 - 每个QR码的容量有限，推荐使用较小的chunk_size（如200-500字符）
 - 对于图像和其他二进制文件，会通过Base64编码，这会增加大约33%的数据量
-- 推荐在良好光照条件下使用高质量相机读取QR码阵列 
+- 推荐在良好光照条件下使用高质量相机读取QR码阵列
+
+## 版本历史
+
+查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新历史。 
