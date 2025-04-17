@@ -191,6 +191,46 @@ python qr_array_gui.py
 - 对于图像和其他二进制文件，会通过Base64编码，这会增加大约33%的数据量
 - 推荐在良好光照条件下使用高质量相机读取QR码阵列
 
+## 打包为可执行程序
+
+本项目可以使用PyInstaller打包成Windows可执行文件，方便分发给没有Python环境的用户：
+
+### 安装PyInstaller
+
+```powershell
+pip install pyinstaller
+```
+
+### 打包命令
+
+#### 单文件版本（推荐用于分发）
+
+```powershell
+pyinstaller --name="QR码阵列工具" --windowed --onefile --clean ^
+    --add-data="README.md;." --add-data="CHANGELOG.md;." ^
+    --hidden-import=PIL --hidden-import=cv2 --hidden-import=pyzbar.pyzbar ^
+    --hidden-import=numpy --hidden-import=PyQt6 ^
+    qr_array_gui.py
+```
+
+#### 文件夹版本（启动更快）
+
+```powershell
+pyinstaller --name="QR码阵列工具" --windowed --onedir --clean ^
+    --add-data="README.md;." --add-data="CHANGELOG.md;." ^
+    --hidden-import=PIL --hidden-import=cv2 --hidden-import=pyzbar.pyzbar ^
+    --hidden-import=numpy --hidden-import=PyQt6 ^
+    qr_array_gui.py
+```
+
+### 打包说明
+
+- 打包完成后，可执行文件将位于`dist`文件夹中
+- 单文件版本（`--onefile`）生成单个EXE文件，方便分发，但启动较慢
+- 文件夹版本（`--onedir`）生成包含所有依赖的文件夹，启动更快，但需要整个文件夹一起分发
+- `--windowed`参数可以避免启动时出现命令行窗口
+- 如果遇到依赖问题，可能需要添加更多`--hidden-import`参数
+
 ## 版本历史
 
 查看 [CHANGELOG.md](CHANGELOG.md) 了解版本更新历史。 
