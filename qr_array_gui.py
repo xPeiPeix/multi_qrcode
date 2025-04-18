@@ -583,7 +583,7 @@ class QRArrayApp(QMainWindow):
         
         # 初始日志
         self.log("多QR码阵列生成与读取 GUI 已启动")
-        self.log(f"版本: 1.4.1, 日期: 2025-04-18")
+        self.log(f"版本: 1.4.2, 日期: 2025-04-18")
         self.log("提示: 可以直接将文件拖放到窗口中或使用Ctrl+V粘贴图像以快速解码")
     
     def update_max_chars(self):

@@ -6,6 +6,8 @@ import math
 
 # QR码最大版本常量
 MAX_VERSION = 40
+# QR码之间的间距（像素）
+QR_CODE_SPACING = 20
 
 def split_text(text, chunk_size=100):
     """将文本分割成固定大小的块"""
@@ -17,7 +19,7 @@ def generate_qr_code(text, index, output_dir="qrcodes"):
         version=1,  # 初始版本为1，自动适应
         error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=10,
-        border=4,
+        border=4,  # 保持足够的安静区（quiet zone）
     )
     
     # 添加索引前缀以确保正确的读取顺序
@@ -38,6 +40,7 @@ def generate_qr_code(text, index, output_dir="qrcodes"):
         # 数据溢出错误处理
         raise ValueError(f"文本块太大，无法编码为QR码。请减小chunk_size值。当前块大小: {len(text)}字符")
     
+    # 生成图像
     img = qr.make_image(fill_color="black", back_color="white")
     
     # 确保目录存在
@@ -47,7 +50,7 @@ def generate_qr_code(text, index, output_dir="qrcodes"):
     return filename
 
 def arrange_qr_codes_in_array(filenames, rows=None, cols=None, output_file="qr_array.png"):
-    """将多个QR码排列成网格"""
+    """将多个QR码排列成网格，增加间距防止定位码被截断"""
     if not filenames:
         return None
     
@@ -67,15 +70,29 @@ def arrange_qr_codes_in_array(filenames, rows=None, cols=None, output_file="qr_a
     elif cols is None:
         cols = int(math.ceil(len(images) / rows))
     
-    # 创建空白图像
-    result = Image.new('RGB', (cols * width, rows * height), color='white')
+    # 计算额外间距后的总宽度和高度
+    total_width = cols * width + (cols - 1) * QR_CODE_SPACING
+    total_height = rows * height + (rows - 1) * QR_CODE_SPACING
     
-    # 将QR码填充到网格中
+    # 创建空白图像，增加额外边距
+    result = Image.new('RGB', (total_width, total_height), color='white')
+    
+    # 将QR码填充到网格中，考虑间距
     for idx, img in enumerate(images):
+        if idx >= rows * cols:
+            break  # 防止索引越界
+            
         row = idx // cols
         col = idx % cols
-        result.paste(img, (col * width, row * height))
+        
+        # 计算带间距的位置
+        x = col * (width + QR_CODE_SPACING)
+        y = row * (height + QR_CODE_SPACING)
+        
+        # 粘贴图像
+        result.paste(img, (x, y))
     
+    # 保存结果
     result.save(output_file)
     print(f"QR码阵列已保存为 {output_file}")
     return output_file
@@ -107,6 +124,14 @@ def create_qr_array(text, chunk_size=100, rows=None, cols=None, output_file="qr_
                 
         # 重新抛出错误以便上层捕获
         raise ValueError(str(e))
+    finally:
+        # 清理临时QR码文件
+        for filename in filenames:
+            try:
+                if os.path.exists(filename):
+                    os.remove(filename)
+            except Exception as e:
+                print(f"清理临时文件时出错: {e}")
 
 if __name__ == "__main__":
     # 测试
