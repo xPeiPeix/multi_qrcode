@@ -16,6 +16,7 @@ import os
 import sys
 import time
 import traceback
+import tempfile
 from datetime import datetime
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
@@ -24,8 +25,8 @@ from PyQt6.QtWidgets import (
     QCheckBox, QProgressBar, QPlainTextEdit, QScrollArea, QStyle,
     QStyleFactory
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QMimeData
-from PyQt6.QtGui import QPixmap, QImage, QFont, QIntValidator, QTextOption, QIcon, QDragEnterEvent, QDropEvent, QColor
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QMimeData, QEvent
+from PyQt6.QtGui import QPixmap, QImage, QFont, QIntValidator, QTextOption, QIcon, QDragEnterEvent, QDropEvent, QKeyEvent, QClipboard, QColor
 
 # 导入QR码阵列生成与读取功能
 from generate_qr_array import create_qr_array
@@ -142,6 +143,72 @@ class PlainTextInputWidget(QPlainTextEdit):
         # 仅粘贴纯文本，去除所有格式
         if source.hasText():
             self.insertPlainText(source.text())
+
+# 添加可接收粘贴事件的标签组件
+class ImageDropZone(QWidget):
+    """可以接收拖放和粘贴图像的区域"""
+    
+    # 定义信号
+    image_pasted = pyqtSignal(str)
+    
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setAcceptDrops(True)
+        
+        # 创建布局
+        layout = QVBoxLayout(self)
+        
+        # 创建标签
+        self.drop_label = QLabel("拖放图像到此处\n或按Ctrl+V粘贴")
+        self.drop_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.drop_label.setStyleSheet("""
+            background-color: #f5f5f5;
+            border: 2px dashed #cccccc;
+            border-radius: 8px;
+            padding: 20px;
+            font-size: 14px;
+            color: #666666;
+        """)
+        
+        # 添加到布局
+        layout.addWidget(self.drop_label)
+        
+        # 启用焦点
+        self.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
+    
+    def keyPressEvent(self, event: QKeyEvent):
+        """处理键盘按键事件"""
+        # 检测Ctrl+V组合键
+        if event.key() == Qt.Key.Key_V and event.modifiers() & Qt.KeyboardModifier.ControlModifier:
+            self.handle_paste()
+        else:
+            super().keyPressEvent(event)
+    
+    def handle_paste(self):
+        """处理粘贴事件"""
+        clipboard = QApplication.clipboard()
+        mime_data = clipboard.mimeData()
+        
+        if mime_data.hasImage():
+            # 从剪贴板获取图像
+            image = clipboard.image()
+            
+            if not image.isNull():
+                # 创建临时文件保存图像
+                temp_dir = tempfile.gettempdir()
+                temp_file = os.path.join(temp_dir, f"pasted_image_{int(time.time())}.png")
+                
+                # 保存图像
+                if image.save(temp_file, "PNG"):
+                    # 发出信号
+                    self.image_pasted.emit(temp_file)
+                    
+                    # 更新提示文本
+                    self.drop_label.setText(f"图像已从剪贴板粘贴\n{os.path.basename(temp_file)}")
+                    return
+        
+        # 如果没有图像或保存失败，显示错误消息
+        self.drop_label.setText("无法从剪贴板粘贴图像\n请确保剪贴板包含有效图像")
 
 # 主窗口类
 class QRArrayApp(QMainWindow):
@@ -371,6 +438,11 @@ class QRArrayApp(QMainWindow):
         
         image_select_layout.addRow("图像路径:", image_path_layout)
         
+        # 添加图像拖放区域
+        self.image_drop_zone = ImageDropZone()
+        self.image_drop_zone.image_pasted.connect(self.handle_pasted_image)
+        image_select_layout.addRow("", self.image_drop_zone)
+        
         image_select_group.setLayout(image_select_layout)
         
         # 解码选项
@@ -511,8 +583,8 @@ class QRArrayApp(QMainWindow):
         
         # 初始日志
         self.log("多QR码阵列生成与读取 GUI 已启动")
-        self.log(f"版本: 1.4.0, 日期: 2025-04-18")
-        self.log("提示: 可以直接将文件拖放到窗口中以快速选择文件")
+        self.log(f"版本: 1.4.1, 日期: 2025-04-18")
+        self.log("提示: 可以直接将文件拖放到窗口中或使用Ctrl+V粘贴图像以快速解码")
     
     def update_max_chars(self):
         """更新字符数量限制，基于选定的QR码块大小"""
@@ -881,6 +953,18 @@ class QRArrayApp(QMainWindow):
                         self.log(f"已加载图像: {file_path}")
                     else:
                         QMessageBox.warning(self, "警告", "请拖入支持的图像文件格式")
+
+    def handle_pasted_image(self, image_path):
+        """处理从剪贴板粘贴的图像"""
+        if os.path.exists(image_path):
+            self.image_path.setText(image_path)
+            self.current_image_path = image_path
+            self.show_image_preview(image_path)
+            self.log(f"已从剪贴板粘贴图像: {image_path}")
+            
+            # 如果是临时图像，提示用户
+            if tempfile.gettempdir() in image_path:
+                self.log("注意: 这是一个临时文件，应用程序关闭后可能会被删除")
 
 # 主函数
 def main():
