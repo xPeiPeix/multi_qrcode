@@ -21,15 +21,19 @@ from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QPushButton, QLabel, QTextEdit, QFileDialog, QSpinBox, QTabWidget,
     QGroupBox, QFormLayout, QLineEdit, QMessageBox, QComboBox, QSplitter,
-    QCheckBox, QProgressBar, QPlainTextEdit, QScrollArea
+    QCheckBox, QProgressBar, QPlainTextEdit, QScrollArea, QStyle,
+    QStyleFactory
 )
-from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize
-from PyQt6.QtGui import QPixmap, QImage, QFont, QIntValidator, QTextOption
+from PyQt6.QtCore import Qt, QThread, pyqtSignal, QSize, QMimeData
+from PyQt6.QtGui import QPixmap, QImage, QFont, QIntValidator, QTextOption, QIcon, QDragEnterEvent, QDropEvent, QColor
 
 # 导入QR码阵列生成与读取功能
 from generate_qr_array import create_qr_array
 from read_qr_array import read_qr_array
 from qr_code_file_transfer import encode_file_to_qr_array, decode_qr_array_to_file
+
+# 导入图像查看器
+from image_viewer import ZoomableImageViewer
 
 # QR码相关常量
 QR_VERSION_MAX = 40  # QR码最大版本
@@ -146,34 +150,45 @@ class QRArrayApp(QMainWindow):
         self.initUI()
         self.current_image_path = None
         self.workers = []
+        
+        # 启用拖放
+        self.setAcceptDrops(True)
     
     def initUI(self):
         # 设置窗口标题和大小
         self.setWindowTitle('多QR码阵列生成与读取')
-        self.setMinimumSize(900, 700)
+        self.setMinimumSize(1000, 750)
+        
+        # 设置应用样式
+        self.setStyle(QStyleFactory.create('Fusion'))
         
         # 创建中央部件和主布局
         central_widget = QWidget()
         self.setCentralWidget(central_widget)
         main_layout = QVBoxLayout(central_widget)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
         
         # 创建选项卡
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
+        self.tabs.setDocumentMode(True)  # 使用更现代的选项卡样式
         text_tab = QWidget()
         file_tab = QWidget()
         decode_tab = QWidget()
         
         # 添加选项卡
-        tabs.addTab(text_tab, "文本编码")
-        tabs.addTab(file_tab, "文件编码")
-        tabs.addTab(decode_tab, "图像解码")
+        self.tabs.addTab(text_tab, "文本编码")
+        self.tabs.addTab(file_tab, "文件编码")
+        self.tabs.addTab(decode_tab, "图像解码")
         
         # 文本编码选项卡布局
         text_layout = QVBoxLayout(text_tab)
+        text_layout.setContentsMargins(15, 15, 15, 15)
         
         # 文本输入区域
         text_input_group = QGroupBox("文本输入")
         text_input_layout = QVBoxLayout()
+        text_input_layout.setSpacing(8)
         
         # 添加说明标签
         input_info_label = QLabel("在此输入或粘贴要编码为QR码的文本。系统将自动移除粘贴文本的所有格式。")
@@ -191,6 +206,7 @@ class QRArrayApp(QMainWindow):
         # 文本编码选项
         text_options_group = QGroupBox("编码选项")
         text_options_layout = QFormLayout()
+        text_options_layout.setVerticalSpacing(10)
         
         self.text_chunk_size = QSpinBox()
         self.text_chunk_size.setRange(100, 850)  # 增加最小值到100，保持大尺寸QR码
@@ -216,18 +232,27 @@ class QRArrayApp(QMainWindow):
         self.text_rows.setSpecialValueText("自动")
         text_options_layout.addRow("行数:", self.text_rows)
         
+        # 创建水平布局用于文件名和浏览按钮
+        output_file_layout = QHBoxLayout()
+        
         self.text_output_file = QLineEdit("text_qr_array.png")
-        text_options_layout.addRow("输出文件名:", self.text_output_file)
+        output_file_layout.addWidget(self.text_output_file)
         
         self.text_output_browse = QPushButton("浏览...")
+        self.text_output_browse.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
         self.text_output_browse.clicked.connect(self.browse_text_output)
-        text_options_layout.addRow("", self.text_output_browse)
+        self.text_output_browse.setMaximumWidth(100)
+        output_file_layout.addWidget(self.text_output_browse)
+        
+        text_options_layout.addRow("输出文件名:", output_file_layout)
         
         text_options_group.setLayout(text_options_layout)
         
         # 文本编码操作按钮
         text_actions_layout = QHBoxLayout()
         self.generate_text_button = QPushButton("生成QR码阵列")
+        self.generate_text_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        self.generate_text_button.setStyleSheet("font-weight: bold; padding: 8px;")
         self.generate_text_button.clicked.connect(self.generate_text_qr_array)
         text_actions_layout.addWidget(self.generate_text_button)
         
@@ -238,26 +263,35 @@ class QRArrayApp(QMainWindow):
         
         # 文件编码选项卡布局
         file_layout = QVBoxLayout(file_tab)
+        file_layout.setContentsMargins(15, 15, 15, 15)
         
         # 文件选择
         file_select_group = QGroupBox("文件选择")
         file_select_layout = QFormLayout()
+        file_select_layout.setVerticalSpacing(10)
+        
+        # 文件路径和浏览按钮水平布局
+        file_path_layout = QHBoxLayout()
         
         self.file_path = QLineEdit()
         self.file_path.setReadOnly(True)
-        self.file_path.setPlaceholderText("请选择要编码的文件...")
+        self.file_path.setPlaceholderText("请选择要编码的文件或将文件拖放到此处...")
+        file_path_layout.addWidget(self.file_path)
         
         self.file_browse = QPushButton("浏览...")
+        self.file_browse.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
         self.file_browse.clicked.connect(self.browse_input_file)
+        self.file_browse.setMaximumWidth(100)
+        file_path_layout.addWidget(self.file_browse)
         
-        file_select_layout.addRow("文件路径:", self.file_path)
-        file_select_layout.addRow("", self.file_browse)
+        file_select_layout.addRow("文件路径:", file_path_layout)
         
         file_select_group.setLayout(file_select_layout)
         
         # 文件编码选项
         file_options_group = QGroupBox("编码选项")
         file_options_layout = QFormLayout()
+        file_options_layout.setVerticalSpacing(10)
         
         self.file_chunk_size = QSpinBox()
         self.file_chunk_size.setRange(100, 850)  # 保持上限为850
@@ -283,18 +317,27 @@ class QRArrayApp(QMainWindow):
         self.file_rows.setSpecialValueText("自动")
         file_options_layout.addRow("行数:", self.file_rows)
         
+        # 文件输出目录水平布局
+        file_output_layout = QHBoxLayout()
+        
         self.file_output_dir = QLineEdit("output")
-        file_options_layout.addRow("输出目录:", self.file_output_dir)
+        file_output_layout.addWidget(self.file_output_dir)
         
         self.file_output_browse = QPushButton("浏览...")
+        self.file_output_browse.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
         self.file_output_browse.clicked.connect(self.browse_file_output_dir)
-        file_options_layout.addRow("", self.file_output_browse)
+        self.file_output_browse.setMaximumWidth(100)
+        file_output_layout.addWidget(self.file_output_browse)
+        
+        file_options_layout.addRow("输出目录:", file_output_layout)
         
         file_options_group.setLayout(file_options_layout)
         
         # 文件编码操作按钮
         file_actions_layout = QHBoxLayout()
         self.generate_file_button = QPushButton("生成QR码阵列")
+        self.generate_file_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
+        self.generate_file_button.setStyleSheet("font-weight: bold; padding: 8px;")
         self.generate_file_button.clicked.connect(self.generate_file_qr_array)
         file_actions_layout.addWidget(self.generate_file_button)
         
@@ -305,42 +348,61 @@ class QRArrayApp(QMainWindow):
         
         # 解码选项卡布局
         decode_layout = QVBoxLayout(decode_tab)
+        decode_layout.setContentsMargins(15, 15, 15, 15)
         
         # 图像选择
         image_select_group = QGroupBox("图像选择")
         image_select_layout = QFormLayout()
+        image_select_layout.setVerticalSpacing(10)
+        
+        # 图像路径和浏览按钮水平布局
+        image_path_layout = QHBoxLayout()
         
         self.image_path = QLineEdit()
         self.image_path.setReadOnly(True)
-        self.image_path.setPlaceholderText("请选择要解码的QR码阵列图像...")
+        self.image_path.setPlaceholderText("请选择要解码的QR码阵列图像或将图像拖放到此处...")
+        image_path_layout.addWidget(self.image_path)
         
         self.image_browse = QPushButton("浏览...")
+        self.image_browse.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
         self.image_browse.clicked.connect(self.browse_input_image)
+        self.image_browse.setMaximumWidth(100)
+        image_path_layout.addWidget(self.image_browse)
         
-        image_select_layout.addRow("图像路径:", self.image_path)
-        image_select_layout.addRow("", self.image_browse)
+        image_select_layout.addRow("图像路径:", image_path_layout)
         
         image_select_group.setLayout(image_select_layout)
         
         # 解码选项
         decode_options_group = QGroupBox("解码选项")
         decode_options_layout = QFormLayout()
+        decode_options_layout.setVerticalSpacing(10)
+        
+        # 解码输出目录水平布局
+        decode_output_layout = QHBoxLayout()
         
         self.decode_output_dir = QLineEdit("decoded")
-        decode_options_layout.addRow("输出目录:", self.decode_output_dir)
+        decode_output_layout.addWidget(self.decode_output_dir)
         
         self.decode_output_browse = QPushButton("浏览...")
+        self.decode_output_browse.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogOpenButton))
         self.decode_output_browse.clicked.connect(self.browse_decode_output_dir)
-        decode_options_layout.addRow("", self.decode_output_browse)
+        self.decode_output_browse.setMaximumWidth(100)
+        decode_output_layout.addWidget(self.decode_output_browse)
         
         self.visual_debug = QCheckBox("可视化调试")
+        self.visual_debug.setToolTip("在解码过程中显示识别结果，帮助分析识别问题")
         decode_options_layout.addRow("", self.visual_debug)
+        
+        decode_options_layout.addRow("输出目录:", decode_output_layout)
         
         decode_options_group.setLayout(decode_options_layout)
         
         # 解码操作按钮
         decode_actions_layout = QHBoxLayout()
         self.decode_button = QPushButton("解码QR码阵列")
+        self.decode_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogApplyButton))
+        self.decode_button.setStyleSheet("font-weight: bold; padding: 8px;")
         self.decode_button.clicked.connect(self.decode_qr_array)
         decode_actions_layout.addWidget(self.decode_button)
         
@@ -352,6 +414,7 @@ class QRArrayApp(QMainWindow):
         # 创建底部区域
         bottom_area = QWidget()
         bottom_layout = QVBoxLayout(bottom_area)
+        bottom_layout.setContentsMargins(5, 5, 5, 5)
         
         # 进度条
         self.progress_bar = QProgressBar()
@@ -366,14 +429,19 @@ class QRArrayApp(QMainWindow):
         # 日志区域
         log_group = QGroupBox("操作日志")
         log_layout = QVBoxLayout()
+        log_layout.setContentsMargins(8, 8, 8, 8)
+        
         self.log_text = QTextEdit()
         self.log_text.setReadOnly(True)
+        self.log_text.setStyleSheet("font-family: 'Consolas', 'Courier New', monospace;")
         self.log_handler = LogHandler(self.log_text)
         
         log_buttons_layout = QHBoxLayout()
         self.clear_log_button = QPushButton("清除日志")
+        self.clear_log_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogResetButton))
         self.clear_log_button.clicked.connect(self.clear_log)
         self.export_log_button = QPushButton("导出日志")
+        self.export_log_button.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_DialogSaveButton))
         self.export_log_button.clicked.connect(self.export_log)
         log_buttons_layout.addWidget(self.clear_log_button)
         log_buttons_layout.addWidget(self.export_log_button)
@@ -385,37 +453,66 @@ class QRArrayApp(QMainWindow):
         # 图像预览区域
         preview_group = QGroupBox("图像预览")
         preview_layout = QVBoxLayout()
+        preview_layout.setContentsMargins(8, 8, 8, 8)
         
-        # 使用QScrollArea包装图像预览，允许滚动查看
-        preview_scroll = QScrollArea()
-        preview_scroll.setWidgetResizable(True)
-        preview_scroll.setMinimumHeight(200)
+        # 使用可缩放图像查看器
+        self.image_viewer = ZoomableImageViewer()
         
-        # 图像预览标签放入滚动区域
-        self.image_preview = QLabel("无图像预览")
-        self.image_preview.setAlignment(Qt.AlignmentFlag.AlignCenter)
-        self.image_preview.setStyleSheet("background-color: #f0f0f0;")
-        preview_scroll.setWidget(self.image_preview)
+        preview_layout.addWidget(self.image_viewer)
         
-        preview_layout.addWidget(preview_scroll)
+        # 添加缩放提示
+        zoom_info = QLabel("提示: 使用鼠标滚轮缩放, 拖动图像平移")
+        zoom_info.setStyleSheet("color: #666; font-style: italic; font-size: 9pt;")
+        zoom_info.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        preview_layout.addWidget(zoom_info)
+        
         preview_group.setLayout(preview_layout)
         
         status_preview.addWidget(log_group)
         status_preview.addWidget(preview_group)
-        status_preview.setSizes([400, 400])
+        status_preview.setSizes([400, 500])
         
         bottom_layout.addWidget(status_preview)
         
         # 将组件添加到主布局
-        main_layout.addWidget(tabs, 1)
+        main_layout.addWidget(self.tabs, 1)
         main_layout.addWidget(bottom_area, 1)
         
         # 初始化字符限制
         self.update_max_chars()
         
+        # 设置全局样式
+        self.setStyleSheet("""
+            QGroupBox {
+                font-weight: bold;
+                border: 1px solid #cccccc;
+                border-radius: 5px;
+                margin-top: 1ex;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+            QPushButton {
+                padding: 5px;
+                border-radius: 3px;
+            }
+            QLineEdit, QPlainTextEdit, QTextEdit {
+                border: 1px solid #aaaaaa;
+                border-radius: 3px;
+                padding: 3px;
+            }
+            QSpinBox {
+                min-width: 80px;
+            }
+        """)
+        
         # 初始日志
         self.log("多QR码阵列生成与读取 GUI 已启动")
-        self.log(f"版本: 1.1.0, 日期: 2025-04-16")
+        self.log(f"版本: 1.4.0, 日期: 2025-04-18")
+        self.log("提示: 可以直接将文件拖放到窗口中以快速选择文件")
     
     def update_max_chars(self):
         """更新字符数量限制，基于选定的QR码块大小"""
@@ -494,18 +591,15 @@ class QRArrayApp(QMainWindow):
     # 图像预览
     def show_image_preview(self, image_path):
         try:
-            pixmap = QPixmap(image_path)
-            if not pixmap.isNull():
-                # 保持原始尺寸不缩放，滚动区域将允许用户查看完整图像
-                self.image_preview.setPixmap(pixmap)
-                # 调整标签大小以适应图像
-                self.image_preview.resize(pixmap.size())
-                self.log(f"加载预览图像: {image_path} (尺寸: {pixmap.width()}x{pixmap.height()})")
+            # 使用可缩放图像查看器加载图像
+            if self.image_viewer.load_image(image_path):
+                self.log(f"加载预览图像: {image_path}")
             else:
-                self.image_preview.setText("无法加载图像")
+                self.image_viewer.scene.clear()
+                self.log(f"无法加载图像: {image_path}")
         except Exception as e:
             self.log(f"预览图像时出错: {str(e)}")
-            self.image_preview.setText("预览图像时出错")
+            self.image_viewer.scene.clear()
     
     # 数据验证
     def validate_text_input(self):
@@ -742,12 +836,72 @@ class QRArrayApp(QMainWindow):
             }
         )
 
+    def dragEnterEvent(self, event: QDragEnterEvent):
+        """处理拖入开始事件"""
+        if event.mimeData().hasUrls():
+            event.acceptProposedAction()
+    
+    def dropEvent(self, event: QDropEvent):
+        """处理放下事件"""
+        mime_data = event.mimeData()
+        
+        if mime_data.hasUrls():
+            # 获取第一个URL
+            url = mime_data.urls()[0]
+            file_path = url.toLocalFile()
+            
+            # 检查文件是否存在
+            if os.path.exists(file_path):
+                # 检查文件类型
+                # 检查当前选中的选项卡
+                current_tab = self.tabs.currentIndex()
+                
+                # 根据当前选项卡决定处理方式
+                if current_tab == 0:  # 文本编码选项卡
+                    # 如果是文本文件，尝试读取内容
+                    try:
+                        with open(file_path, 'r', encoding='utf-8') as f:
+                            self.text_input.setPlainText(f.read())
+                            self.log(f"已从拖入的文件加载文本: {file_path}")
+                    except Exception as e:
+                        QMessageBox.warning(self, "警告", f"无法读取文本文件: {str(e)}")
+                
+                elif current_tab == 1:  # 文件编码选项卡
+                    # 设置文件路径
+                    self.file_path.setText(file_path)
+                    self.log(f"已选择文件: {file_path}")
+                
+                elif current_tab == 2:  # 图像解码选项卡
+                    # 检查是否为图像文件
+                    ext = os.path.splitext(file_path)[1].lower()
+                    if ext in ['.png', '.jpg', '.jpeg', '.bmp', '.webp', '.tiff', '.tif']:
+                        self.image_path.setText(file_path)
+                        self.current_image_path = file_path
+                        self.show_image_preview(file_path)
+                        self.log(f"已加载图像: {file_path}")
+                    else:
+                        QMessageBox.warning(self, "警告", "请拖入支持的图像文件格式")
+
 # 主函数
 def main():
     app = QApplication(sys.argv)
     
     # 设置应用样式
-    app.setStyle('Fusion')
+    app.setStyle(QStyleFactory.create('Fusion'))
+    
+    # 设置调色板颜色使深色模式看起来更好
+    palette = app.palette()
+    palette.setColor(palette.ColorRole.Window, QColor(240, 240, 240))
+    palette.setColor(palette.ColorRole.WindowText, QColor(0, 0, 0))
+    palette.setColor(palette.ColorRole.Base, QColor(255, 255, 255))
+    palette.setColor(palette.ColorRole.AlternateBase, QColor(245, 245, 245))
+    palette.setColor(palette.ColorRole.Text, QColor(0, 0, 0))
+    palette.setColor(palette.ColorRole.Button, QColor(240, 240, 240))
+    palette.setColor(palette.ColorRole.ButtonText, QColor(0, 0, 0))
+    palette.setColor(palette.ColorRole.Link, QColor(0, 100, 200))
+    palette.setColor(palette.ColorRole.Highlight, QColor(42, 130, 218))
+    palette.setColor(palette.ColorRole.HighlightedText, QColor(255, 255, 255))
+    app.setPalette(palette)
     
     window = QRArrayApp()
     window.show()

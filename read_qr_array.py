@@ -34,7 +34,7 @@ def read_qr_code(image_path, visual_debug=False):
             print(f"类型: {obj.type}, 数据: {obj.data.decode('utf-8')}")
         
         # 显示图像
-        cv2.imshow("QR Code Reader", image)
+        cv2.imshow("QR Code Viewer", image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
@@ -145,8 +145,8 @@ def extract_qr_codes_from_array(array_image_path, visual_debug=False):
         cv2.imwrite(debug_image_path, visual_image)
         print(f"已保存调试图像到: {debug_image_path}")
         
-        # 显示图像
-        cv2.imshow("QR码阵列识别结果", visual_image)
+        # 显示图像 - 使用英文标题以避免中文编码问题
+        cv2.imshow("QR Code Array Detection Result", visual_image)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
     
