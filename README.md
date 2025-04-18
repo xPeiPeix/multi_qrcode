@@ -12,6 +12,7 @@
 - 支持中文和Unicode字符
 - 支持二进制文件传输（通过Base64编码）
 - 提供图形用户界面，易于使用
+- 支持多种图像格式（PNG、JPG、JPEG、BMP、WebP、TIFF等）
 
 ## 项目文件说明
 
@@ -42,6 +43,7 @@
   - 按索引顺序重组文本
   - 提供可视化调试功能
   - 支持多种索引格式，具有强大的容错能力
+  - 支持多种图像格式（PNG、JPG、JPEG、BMP、WebP、TIFF等）
 
 - **qr_code_file_transfer.py**：
   - 封装文件编码和解码逻辑
@@ -56,6 +58,7 @@
   - 支持文件选择和保存
   - 包含图像预览和日志功能
   - 使用工作线程处理长时间操作，避免界面冻结
+  - 支持读取多种格式的QR码阵列图像
 
 ## 安装依赖
 
@@ -108,7 +111,7 @@ python generate_qr_array.py
 python read_qr_array.py
 ```
 
-默认会读取当前目录下的 `qr_array.png` 文件。
+默认会读取当前目录下的 `qr_array.png` 文件。也支持读取其他格式图像文件（如JPG、BMP等）。
 
 #### 使用文件传输功能
 
@@ -150,7 +153,7 @@ python qr_code_file_transfer.py decode test_message_qr_array.png --output-dir re
 
 ### 读取QR码阵列参数
 
-- `array_image_path`：QR码阵列图像的路径
+- `array_image_path`：QR码阵列图像的路径（支持PNG、JPG、JPEG、BMP、WebP、TIFF等格式）
 - `visual_debug`：是否显示可视化调试信息
 
 ## 编码注意事项
@@ -190,6 +193,7 @@ python qr_array_gui.py
 - 每个QR码的容量有限，推荐使用较小的chunk_size（如200-500字符）
 - 对于图像和其他二进制文件，会通过Base64编码，这会增加大约33%的数据量
 - 推荐在良好光照条件下使用高质量相机读取QR码阵列
+- 当使用JPG等有损压缩格式时，图像质量可能会影响QR码识别效果，建议使用PNG等无损格式或保持较高的图像质量
 
 ## 版本历史
 

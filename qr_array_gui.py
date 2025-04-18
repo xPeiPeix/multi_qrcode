@@ -458,7 +458,8 @@ class QRArrayApp(QMainWindow):
     
     def browse_input_image(self):
         filename, _ = QFileDialog.getOpenFileName(
-            self, "选择QR码阵列图像", "", "PNG图像 (*.png);;JPG图像 (*.jpg *.jpeg);;所有文件 (*)"
+            self, "选择QR码阵列图像", "", 
+            "图像文件 (*.png *.jpg *.jpeg *.bmp *.webp *.tiff *.tif);;PNG图像 (*.png);;JPG图像 (*.jpg *.jpeg);;BMP图像 (*.bmp);;WebP图像 (*.webp);;TIFF图像 (*.tiff *.tif);;所有文件 (*)"
         )
         if filename:
             self.image_path.setText(filename)
