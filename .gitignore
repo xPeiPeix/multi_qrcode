@@ -17,3 +17,7 @@ __pycache__
 *.txt
 *.log
 
+build/
+dist/
+
+*.spec
