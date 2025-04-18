@@ -3,23 +3,28 @@ import numpy as np
 from PIL import Image
 import os
 import math
+import shutil
 
 # QR码最大版本常量
 MAX_VERSION = 40
 # QR码之间的间距（像素）
 QR_CODE_SPACING = 20
+# 添加额外边距（像素）
+QR_CODE_MARGIN = 40
+# 默认临时文件夹
+DEFAULT_TEMP_DIR = "qrcodes"
 
 def split_text(text, chunk_size=100):
     """将文本分割成固定大小的块"""
     return [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
 
-def generate_qr_code(text, index, output_dir="qrcodes"):
+def generate_qr_code(text, index, output_dir=DEFAULT_TEMP_DIR):
     """生成单个QR码并保存"""
     qr = qrcode.QRCode(
         version=1,  # 初始版本为1，自动适应
         error_correction=qrcode.constants.ERROR_CORRECT_L,
         box_size=10,
-        border=4,  # 保持足够的安静区（quiet zone）
+        border=6,  # 增加边界宽度，确保足够的静区
     )
     
     # 添加索引前缀以确保正确的读取顺序
@@ -50,44 +55,65 @@ def generate_qr_code(text, index, output_dir="qrcodes"):
     return filename
 
 def arrange_qr_codes_in_array(filenames, rows=None, cols=None, output_file="qr_array.png"):
-    """将多个QR码排列成网格，增加间距防止定位码被截断"""
+    """将多个QR码排列成网格，确保大小一致且不会截断"""
     if not filenames:
         return None
     
     # 加载图像
     images = [Image.open(filename) for filename in filenames]
     
-    # 确定所有图像的尺寸一致
-    width, height = images[0].size
+    # 找出所有QR码中的最大宽度和高度
+    max_width = max(img.width for img in images)
+    max_height = max(img.height for img in images)
+    
+    print(f"检测到QR码最大尺寸: {max_width}x{max_height}像素")
+    
+    # 规范化所有QR码尺寸到一致大小
+    normalized_images = []
+    for img in images:
+        # 如果图片尺寸已经是最大尺寸，则直接添加
+        if img.width == max_width and img.height == max_height:
+            normalized_images.append(img)
+        else:
+            # 创建新的白色背景图像，大小为最大尺寸
+            new_img = Image.new('RGB', (max_width, max_height), color='white')
+            
+            # 计算居中位置
+            x_offset = (max_width - img.width) // 2
+            y_offset = (max_height - img.height) // 2
+            
+            # 将原图粘贴到新图像上的居中位置
+            new_img.paste(img, (x_offset, y_offset))
+            normalized_images.append(new_img)
     
     # 自动计算行数和列数
     if rows is None and cols is None:
         # 默认为近似正方形排列
-        cols = int(math.ceil(math.sqrt(len(images))))
-        rows = int(math.ceil(len(images) / cols))
+        cols = int(math.ceil(math.sqrt(len(normalized_images))))
+        rows = int(math.ceil(len(normalized_images) / cols))
     elif rows is None:
-        rows = int(math.ceil(len(images) / cols))
+        rows = int(math.ceil(len(normalized_images) / cols))
     elif cols is None:
-        cols = int(math.ceil(len(images) / rows))
+        cols = int(math.ceil(len(normalized_images) / rows))
     
-    # 计算额外间距后的总宽度和高度
-    total_width = cols * width + (cols - 1) * QR_CODE_SPACING
-    total_height = rows * height + (rows - 1) * QR_CODE_SPACING
+    # 计算总宽度和高度，包括QR码间距和外边距
+    total_width = cols * max_width + (cols - 1) * QR_CODE_SPACING + 2 * QR_CODE_MARGIN
+    total_height = rows * max_height + (rows - 1) * QR_CODE_SPACING + 2 * QR_CODE_MARGIN
     
-    # 创建空白图像，增加额外边距
+    # 创建空白图像，包括额外边距
     result = Image.new('RGB', (total_width, total_height), color='white')
     
-    # 将QR码填充到网格中，考虑间距
-    for idx, img in enumerate(images):
+    # 将QR码填充到网格中，考虑间距和边距
+    for idx, img in enumerate(normalized_images):
         if idx >= rows * cols:
             break  # 防止索引越界
             
         row = idx // cols
         col = idx % cols
         
-        # 计算带间距的位置
-        x = col * (width + QR_CODE_SPACING)
-        y = row * (height + QR_CODE_SPACING)
+        # 计算带间距和边距的位置
+        x = QR_CODE_MARGIN + col * (max_width + QR_CODE_SPACING)
+        y = QR_CODE_MARGIN + row * (max_height + QR_CODE_SPACING)
         
         # 粘贴图像
         result.paste(img, (x, y))
@@ -97,7 +123,19 @@ def arrange_qr_codes_in_array(filenames, rows=None, cols=None, output_file="qr_a
     print(f"QR码阵列已保存为 {output_file}")
     return output_file
 
-def create_qr_array(text, chunk_size=100, rows=None, cols=None, output_file="qr_array.png"):
+def clean_temp_directory(temp_dir=DEFAULT_TEMP_DIR):
+    """清理临时文件夹及其所有内容"""
+    try:
+        if os.path.exists(temp_dir) and os.path.isdir(temp_dir):
+            print(f"正在删除临时文件夹 '{temp_dir}' 及其所有内容...")
+            shutil.rmtree(temp_dir)
+            print(f"临时文件夹 '{temp_dir}' 已成功删除")
+        else:
+            print(f"临时文件夹 '{temp_dir}' 不存在，无需清理")
+    except Exception as e:
+        print(f"清理临时文件夹时出错: {str(e)}")
+
+def create_qr_array(text, chunk_size=100, rows=None, cols=None, output_file="qr_array.png", temp_dir=DEFAULT_TEMP_DIR):
     """主函数：分割文本、生成多个QR码并排列成阵列"""
     # 分割文本
     chunks = split_text(text, chunk_size)
@@ -107,7 +145,7 @@ def create_qr_array(text, chunk_size=100, rows=None, cols=None, output_file="qr_
     filenames = []
     try:
         for i, chunk in enumerate(chunks):
-            filename = generate_qr_code(chunk, i)
+            filename = generate_qr_code(chunk, i, temp_dir)
             filenames.append(filename)
         
         # 将QR码排列为阵列
@@ -115,23 +153,11 @@ def create_qr_array(text, chunk_size=100, rows=None, cols=None, output_file="qr_
         
         return array_file, len(chunks)
     except ValueError as e:
-        # 清理已生成的临时文件
-        for filename in filenames:
-            try:
-                os.remove(filename)
-            except:
-                pass
-                
         # 重新抛出错误以便上层捕获
         raise ValueError(str(e))
     finally:
-        # 清理临时QR码文件
-        for filename in filenames:
-            try:
-                if os.path.exists(filename):
-                    os.remove(filename)
-            except Exception as e:
-                print(f"清理临时文件时出错: {e}")
+        # 清理临时文件和文件夹
+        clean_temp_directory(temp_dir)
 
 if __name__ == "__main__":
     # 测试
