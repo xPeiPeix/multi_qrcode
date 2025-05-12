@@ -6,7 +6,6 @@ __pycache__
 *.pyz
 *.pywz
 
-*.png
 *.jpg
 *.jpeg
 *.gif

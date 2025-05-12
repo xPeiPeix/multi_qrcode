@@ -1,6 +1,96 @@
-# 多QR码阵列生成与读取
+# 多QR码阵列生成与读取 (Multi-QR Code Array Generator and Reader)
 
-这个项目实现了将长文本分割为多个QR码并排列成阵列，以及读取QR码阵列并重组文本的功能。特别适用于需要传递大量数据且没有网络连接的场景。
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Python Version](https://img.shields.io/badge/python-3.6%2B-blue)](https://www.python.org/downloads/)
+[![PyQt6](https://img.shields.io/badge/PyQt-6.2%2B-green)](https://pypi.org/project/PyQt6/)
+[![Version](https://img.shields.io/badge/version-1.4.4-brightgreen)](CHANGELOG.md)
+
+这个项目实现了将长文本分割为多个QR码并排列成阵列，以及读取QR码阵列并重组文本的功能。特别适用于**需要传递大量数据且没有网络连接的场景**（例如内网传外网），克服了单个二维码传输信息有限且分段传输容易导致格式混乱的问题。
+
+## 背景与目的
+
+在特殊的网络环境中（例如内网隔离环境），数据传输面临严峻挑战：
+- 单个二维码的信息容量有限（通常不超过4KB）
+- 多个二维码分段传输容易导致代码结构被打乱或顺序混乱
+- 手动拼接大量文本块容易出错
+
+本项目通过创新的设计解决了这些问题：
+- 将大文本智能分割成多个带索引的QR码
+- 将这些QR码按照特定规则排列成一个阵列图像
+- 通过专用的解码工具，可以从阵列图像中准确识别每个QR码及其索引
+- 无论内容大小，都能准确还原原始数据，保持格式和结构的完整性
+
+## 快速开始
+
+### 1. 安装依赖
+
+在Windows环境下，使用PowerShell执行以下命令安装所需库：
+
+```powershell
+pip install -r requirements.txt
+```
+
+### 2. 启动图形界面
+
+```powershell
+python run_gui.py
+```
+
+程序启动后，您将看到如下界面：
+
+<div align="center">
+  <img src="./assets/image1.png" alt="程序主界面" width="700">
+  <p><i>图1：多QR码阵列工具主界面</i></p>
+</div>
+
+### 3. 使用流程
+
+#### 3.1 文本编码到QR码阵列
+
+1. 在文本编辑区域输入或粘贴要传输的文本
+2. 设置合适的文本块大小和布局选项，根据内容类型选择推荐值
+   
+<div align="center">
+  <img src="./assets/image2.png" alt="文本输入和选项设置" width="700">
+  <p><i>图2：输入文本并设置编码选项</i></p>
+</div>
+
+3. 点击"生成QR码阵列"按钮
+4. 在指定的输出位置查看生成的QR码阵列图像
+
+<div align="center">
+  <img src="./assets/image3.png" alt="生成的QR码阵列" width="700">
+  <p><i>图3：生成的多QR码阵列</i></p>
+</div>
+
+#### 3.2 从QR码阵列解码
+
+1. 切换到"图像解码"选项卡
+2. 点击"浏览"按钮选择QR码阵列图像（或拍照导入、拖放图像、粘贴图像）
+3. 勾选"可视化调试"可查看识别过程和索引序号
+
+<div align="center">
+  <img src="./assets/image4.png" alt="解码过程与可视化调试" width="700">
+  <p><i>图4：解码过程与可视化调试界面，显示识别的QR码索引</i></p>
+</div>
+
+4. 点击"解码QR码阵列"按钮
+5. 在结果区域查看解码的文本内容
+
+<div align="center">
+  <img src="./assets/image5.png" alt="解码结果" width="700">
+  <p><i>图5：解码后的文本显示界面</i></p>
+</div>
+
+#### 3.3 文件编码
+
+无需手动提供文本，直接选择文件进行编码：
+1. 切换到"文件编码"选项卡
+2. 选择要编码的文件
+3. 设置编码选项
+4. 点击"生成QR码阵列"按钮
+
+> **小贴士**：解析的QR码数量没有严格限制，主要受限于拍摄设备的图像清晰度和显示屏幕的大小。在实际应用中，建议根据屏幕大小和摄像头质量调整QR码的数量和大小，以获得最佳的传输效果。
 
 ## 功能特点
 
@@ -24,6 +114,7 @@
 | `read_qr_array.py` | 实现QR码阵列读取功能，识别阵列中的QR码并重组文本 |
 | `qr_code_file_transfer.py` | 文件传输模块，支持将任意文件编码为QR码阵列并解码恢复 |
 | `qr_array_gui.py` | 图形用户界面实现，基于PyQt6，提供直观的操作体验 |
+| `run_gui.py` | 启动图形界面的入口脚本 |
 | `requirements.txt` | 项目依赖库列表 |
 | `README.md` | 项目说明文档 |
 | `CHANGELOG.md` | 版本更新历史记录 |
@@ -81,7 +172,7 @@ pip install qrcode pillow opencv-python pyzbar numpy PyQt6
 启动图形用户界面，提供直观的操作体验：
 
 ```powershell
-python qr_array_gui.py
+python run_gui.py
 ```
 
 GUI界面包含三个主要功能选项卡：
@@ -194,6 +285,14 @@ python qr_array_gui.py
 - 对于图像和其他二进制文件，会通过Base64编码，这会增加大约33%的数据量
 - 推荐在良好光照条件下使用高质量相机读取QR码阵列
 - 当使用JPG等有损压缩格式时，图像质量可能会影响QR码识别效果，建议使用PNG等无损格式或保持较高的图像质量
+
+## 贡献指南
+
+欢迎对本项目提出改进建议或贡献代码。请查看 [CONTRIBUTING.md](CONTRIBUTING.md) 了解如何参与贡献。
+
+## 许可证
+
+本项目采用 MIT 许可证。详情请参阅 [LICENSE](LICENSE) 文件。
 
 ## 版本历史
 
