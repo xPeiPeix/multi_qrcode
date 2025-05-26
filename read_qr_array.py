@@ -76,6 +76,16 @@ def extract_qr_codes_from_array(array_image_path, visual_debug=False):
     if image is None:
         print(f"错误: 无法读取图像文件 '{array_image_path}'")
         return []
+
+    # Upscale the image to potentially improve detection of small QR codes
+    # Let's scale it by a factor of 2. This factor can be adjusted.
+    scale_factor = 2
+    if image.shape[0] < 1000 and image.shape[1] < 1000: # Optional: only upscale if image is small
+        print(f"Upscaling image by factor of {scale_factor}")
+        width = int(image.shape[1] * scale_factor)
+        height = int(image.shape[0] * scale_factor)
+        dim = (width, height)
+        image = cv2.resize(image, dim, interpolation=cv2.INTER_CUBIC)
     
     # 将图像转为灰度
     try:

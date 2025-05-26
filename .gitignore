@@ -13,6 +13,12 @@ __pycache__
 *.tiff
 *.ico
 
+# Ignore all png files
+*.png
+
+# But do NOT ignore png files in the assets directory
+!assets/**/*.png
+
 *.txt
 *.log
 
