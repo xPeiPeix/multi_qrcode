@@ -583,7 +583,7 @@ class QRArrayApp(QMainWindow):
         
         # 初始日志
         self.log("多QR码阵列生成与读取 GUI 已启动")
-        self.log(f"版本: 1.4.4, 日期: 2025-04-18")
+        self.log(f"版本: 1.5.1, 日期: 2025-05-30")
         self.log("提示: 可以直接将文件拖放到窗口中或使用Ctrl+V粘贴图像以快速解码")
     
     def update_max_chars(self):
@@ -735,20 +735,31 @@ class QRArrayApp(QMainWindow):
             if result:
                 self.log(f"操作完成: 文件已解码并保存为 {result}")
                 
-                # 显示解码成功消息
                 # 从路径提取文件名
                 filename = os.path.basename(result)
                 
-                QMessageBox.information(
-                    self, 
-                    "解码成功", 
+                # 询问用户是否打开文件
+                reply = QMessageBox.question(
+                    self,
+                    "解码成功",
                     f"QR码阵列已成功解码！\n\n"
                     f"文件保存为: {result}\n\n"
+                    "是否立即打开文件？\n\n"
                     "提示: 如果解码出错或内容不完整，请尝试以下方法:\n"
                     "1. 确保QR码图像清晰且完整\n"
                     "2. 勾选'可视化调试'选项以查看识别情况\n"
-                    "3. 查看操作日志了解更多详情"
+                    "3. 查看操作日志了解更多详情",
+                    QMessageBox.StandardButton.Open | QMessageBox.StandardButton.Cancel,
+                    QMessageBox.StandardButton.Open
                 )
+
+                if reply == QMessageBox.StandardButton.Open:
+                    try:
+                        os.startfile(result) # Windows specific command
+                        self.log(f"已尝试打开文件: {result}")
+                    except Exception as e:
+                        self.log(f"无法打开文件: {str(e)}")
+                        QMessageBox.warning(self, "打开失败", f"无法自动打开文件: {result}\n错误: {str(e)}")
                 
                 # 如果是文本文件，尝试在日志区域显示内容预览
                 if filename.endswith('.txt'):
